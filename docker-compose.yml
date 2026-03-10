@@ -1,0 +1,71 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:18-alpine
+    container_name: edumaster_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${DATABASE_USERNAME:-postgres}
+      POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-123456}
+      POSTGRES_DB: ${DATABASE_NAME:-edumaster}
+    ports:
+      - "5432:5432"
+    volumes:
+      - edumaster_db_data:/var/lib/postgresql/data
+      - ./edumaster-backend/database/09032026.sql:/dump.backup:ro
+      - ./edumaster-backend/database/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
+    networks:
+      - edumaster_net
+
+  backend:
+    build:
+      context: ./edumaster-backend
+      dockerfile: Dockerfile
+    container_name: edumaster_backend
+    restart: always
+    environment:
+      DATABASE_CLIENT: postgres
+      DATABASE_HOST: db
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${DATABASE_NAME:-edumaster}
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-postgres}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-123456}
+      DATABASE_SSL: "false"
+      APP_KEYS: "toBeModified1,toBeModified2"
+      API_TOKEN_SALT: "toBeModified3"
+      ADMIN_JWT_SECRET: "toBeModified4"
+      TRANSFER_TOKEN_SALT: "toBeModified5"
+      JWT_SECRET: "toBeModified6"
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 1337
+    ports:
+      - "1337:1337"
+    depends_on:
+      - db
+    networks:
+      - edumaster_net
+    volumes:
+      - ./edumaster-backend/public/uploads:/opt/app/public/uploads
+
+  frontend:
+    build:
+      context: ./edumaster-frontend
+      dockerfile: Dockerfile
+    container_name: edumaster_frontend
+    restart: always
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - edumaster_net
+
+volumes:
+  edumaster_db_data:
+
+
+networks:
+  edumaster_net:
+    driver: bridge
