@@ -28,7 +28,8 @@
             "type": "relation",
             "relation": "manyToOne",
             "target": "api::student.student",
-            "inversedBy": "documents"
+            "inversedBy": "documents",
+            "onDelete": "CASCADE"
         }
     }
 }

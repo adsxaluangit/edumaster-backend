@@ -41,7 +41,8 @@
         "students": {
             "type": "relation",
             "relation": "manyToMany",
-            "target": "api::student.student"
+            "target": "api::student.student",
+            "onDelete": "CASCADE"
         },
         "notes": {
             "type": "text"

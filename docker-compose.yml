@@ -13,7 +13,7 @@ services:
       - "5432:5432"
     volumes:
       - edumaster_db_data:/var/lib/postgresql/data
-      - ./edumaster-backend/database/21032026.sql:/dump.backup:ro
+      - ./edumaster-backend/database/21032026_v2.sql:/dump.backup:ro
       - ./edumaster-backend/database/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh:ro
     networks:
       - edumaster_net
