@@ -52,51 +52,42 @@ export default {
                        console.log(` EduMaster Granted ${action}`);
                    }
                 }
-            } else {
-                console.error(' EduMaster Authenticated role NOT FOUND!');
             }
 
-            // 3. Create/Update Demo User 'duong'
-            const username = 'duong';
-            const password = 'EduMaster@2026';
-            const email = 'admin@edumaster.vn';
-
-            const existingUser = await strapi.query('plugin::users-permissions.user').findOne({ 
-                where: { $or: [{ username }, { email }] } 
-            });
+            // 3. Create/Update MULTIPLE Demo Users
+            const users = [
+                { username: 'duong', email: 'admin@edumaster.vn' },
+                { username: 'Duong', email: 'duong@edumaster.vn' },
+                { username: 'admin', email: 'support@edumaster.vn' }
+            ];
             
-            if (!existingUser) {
-                console.log(` EduMaster Creating user "${username}"...`);
-                await strapi.service('plugin::users-permissions.user').add({
-                    username,
-                    email,
+            const password = 'EduMaster@2026';
+
+            for (const userEntry of users) {
+                const existingUser = await strapi.query('plugin::users-permissions.user').findOne({ 
+                    where: { username: userEntry.username } 
+                });
+
+                const data = {
+                    ...userEntry,
                     password,
                     confirmed: true,
                     role: authenticatedRole?.id,
                     blocked: false
-                });
-                console.log(` EduMaster Created demo user "${username}"`);
-            } else {
-                console.log(` EduMaster User "${username}" already exists (ID: ${existingUser.id}). Updating password...`);
-                await strapi.service('plugin::users-permissions.user').edit(existingUser.id, {
-                    password,
-                    confirmed: true
-                });
-                console.log(` EduMaster Updated password for "${username}"`);
-            }
+                };
 
-            // 4. TEST LOGIN IMMEDIATELY
-            console.log(` EduMaster PERFORMING LOGIN TEST FOR "${username}"...`);
-            const verifiedUser = await strapi.query('plugin::users-permissions.user').findOne({ where: { username } });
-            if (verifiedUser) {
-                const isValid = await strapi.service('plugin::users-permissions.user').validatePassword(password, verifiedUser.password);
-                if (isValid) {
-                    console.log(` EduMaster LOGIN TEST SUCCESSFUL! Password for "${username}" is correctly hashed.`);
+                if (!existingUser) {
+                    await strapi.service('plugin::users-permissions.user').add(data);
+                    console.log(` EduMaster Created user "${userEntry.username}"`);
                 } else {
-                    console.error(` EduMaster LOGIN TEST FAILED! Password for "${username}" is NOT correctly hashed.`);
+                    await strapi.service('plugin::users-permissions.user').edit(existingUser.id, { password, confirmed: true });
+                    console.log(` EduMaster Updated user "${userEntry.username}"`);
                 }
-            } else {
-                console.error(` EduMaster TEST FAILED! Could not find user "${username}" after creation.`);
+
+                // Verify login test for EACH user
+                const verified = await strapi.query('plugin::users-permissions.user').findOne({ where: { username: userEntry.username } });
+                const isValid = await strapi.service('plugin::users-permissions.user').validatePassword(password, verified.password);
+                console.log(` EduMaster LOGIN TEST for "${userEntry.username}": ${isValid ? 'PASSED' : 'FAILED'}`);
             }
 
             console.log(' EduMaster BOOTSTRAP COMPLETE.');
