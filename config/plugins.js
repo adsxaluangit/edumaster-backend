@@ -3,4 +3,12 @@ module.exports = () => ({
     i18n: {
         enabled: false,
     },
+    'users-permissions': {
+        config: {
+            ratelimit: {
+                interval: 60000,
+                max: 100,
+            },
+        },
+    },
 });
