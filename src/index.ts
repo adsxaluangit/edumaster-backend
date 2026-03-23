@@ -21,13 +21,14 @@ export default {
      * run jobs, or perform some special logic.
      */
     async bootstrap({ strapi }: { strapi: any }) {
-        strapi.log.info('BOOTSTRAP: Starting EduMaster Pro system initialization...');
+        console.log(' EduMaster BOOTSTRAP STARTING...');
 
         try {
             // 1. Get the Authenticated Role
             const authenticatedRole = await strapi.query('plugin::users-permissions.role').findOne({ where: { type: 'authenticated' } });
             
             if (authenticatedRole) {
+                console.log(` EduMaster Found Authenticated Role: ${authenticatedRole.id}`);
                 // 2. Grant Permissions to Authenticated Role
                 const actionsToGrant = [
                     'api::class-decision.class-decision.find', 'api::class-decision.class-decision.findOne', 'api::class-decision.class-decision.create', 'api::class-decision.class-decision.update', 'api::class-decision.class-decision.delete',
@@ -48,37 +49,47 @@ export default {
                    const existing = await strapi.query('plugin::users-permissions.permission').findOne({ where: { role: authenticatedRole.id, action: action } });
                    if (!existing) {
                        await strapi.query('plugin::users-permissions.permission').create({ data: { action, role: authenticatedRole.id } });
-                       strapi.log.info(`BOOTSTRAP: Granted ${action} to Authenticated role`);
+                       console.log(` EduMaster Granted ${action}`);
                    }
                 }
+            } else {
+                console.error(' EduMaster Authenticated role NOT FOUND!');
             }
 
             // 3. Create/Update Demo User 'duong'
-            const existingUser = await strapi.query('plugin::users-permissions.user').findOne({ where: { username: 'duong' } });
+            const existingUser = await strapi.query('plugin::users-permissions.user').findOne({ 
+                where: { $or: [{ username: 'duong' }, { email: 'admin@edumaster.vn' }] } 
+            });
             
-            const userData = {
-                username: 'duong',
-                email: 'admin@edumaster.vn',
-                password: 'EduMaster@2026',
-                confirmed: true,
-                role: authenticatedRole?.id,
-                blocked: false
-            };
+            const password = 'EduMaster@2026';
 
-            if (!existingUser && authenticatedRole) {
-                // Use the user service to ensure password hashing
-                await strapi.service('plugin::users-permissions.user').add(userData);
-                strapi.log.info('BOOTSTRAP: Created demo user "duong" with password "EduMaster@2026"');
-            } else if (existingUser) {
-                // Update password for existing user to match the one provided to the user
-                await strapi.service('plugin::users-permissions.user').edit(existingUser.id, { password: 'EduMaster@2026' });
-                strapi.log.info('BOOTSTRAP: Updated password for existing user "duong" to "EduMaster@2026"');
+            if (!existingUser) {
+                console.log(' EduMaster Creating user "duong"...');
+                await strapi.service('plugin::users-permissions.user').add({
+                    username: 'duong',
+                    email: 'admin@edumaster.vn',
+                    password: password,
+                    confirmed: true,
+                    role: authenticatedRole?.id,
+                    blocked: false
+                });
+                console.log(' EduMaster Created demo user "duong"');
+            } else {
+                console.log(` EduMaster User "duong" already exists (ID: ${existingUser.id}). Updating password...`);
+                await strapi.service('plugin::users-permissions.user').edit(existingUser.id, {
+                    password: password,
+                    confirmed: true,
+                    role: authenticatedRole?.id,
+                    blocked: false
+                });
+                console.log(' EduMaster Updated password for "duong"');
             }
 
-            strapi.log.info('BOOTSTRAP: Initialization complete. System is ready.');
+            console.log(' EduMaster BOOTSTRAP COMPLETE.');
 
-        } catch (err) {
-            strapi.log.error('BOOTSTRAP ERROR:', err);
+        } catch (err: any) {
+            console.error(' EduMaster BOOTSTRAP ERROR:', err.message);
+            if (err.stack) console.error(err.stack);
         }
     },
 };
