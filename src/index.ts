@@ -1,11 +1,5 @@
-// EduMaster Pro Backend Entry Point - Rebuild Trigger For Decisions Schema Update
+// EduMaster Pro Backend Entry Point
 export default {
-    /**
-     * An asynchronous register function that runs before
-     * your application is initialized.
-     *
-     * This gives you an opportunity to extend code.
-     */
     register({ strapi }: { strapi: any }) {
         strapi.contentType('plugin::users-permissions.user').attributes.permissions = {
             type: 'json',
@@ -13,13 +7,6 @@ export default {
         };
     },
 
-    /**
-     * An asynchronous bootstrap function that runs before
-     * your application gets started.
-     *
-     * This gives you an opportunity to set up your data model,
-     * run jobs, or perform some special logic.
-     */
     async bootstrap({ strapi }: { strapi: any }) {
         console.log(' EduMaster BOOTSTRAP STARTING...');
 
@@ -33,7 +20,6 @@ export default {
                 // 1b. Fix Plugin Settings (Local login & Confirmation)
                 const store = strapi.store({ type: 'plugin', name: 'users-permissions' });
                 const advancedSettings = await store.get({ key: 'advanced' });
-                console.log(' EduMaster Advanced Settings (BEFORE):', JSON.stringify(advancedSettings));
                 
                 await store.set({ 
                     key: 'advanced', 
@@ -77,74 +63,41 @@ export default {
                        console.log(` EduMaster Granted ${action}`);
                    }
                 }
+
+                // 3. Update Users with correct HASHED passwords
+                const usersToSet = [
+                    { username: 'duong', email: 'duong@edumaster.pro', password: 'EduMaster@2026' },
+                    { username: 'admin', email: 'admin@edumaster.pro', password: 'admin123' }
+                ];
+
+                for (const uData of usersToSet) {
+                    const user = await strapi.query('plugin::users-permissions.user').findOne({ where: { username: uData.username } });
+                    const hashedPassword = await strapi.service('plugin::users-permissions.user').hashPassword(uData.password);
+                    
+                    const finalData = {
+                        username: uData.username,
+                        email: uData.email,
+                        password: hashedPassword,
+                        role: authenticatedRole.id,
+                        confirmed: true,
+                        blocked: false,
+                        provider: 'local'
+                    };
+
+                    if (!user) {
+                        await strapi.query('plugin::users-permissions.user').create({ data: finalData });
+                        console.log(` EduMaster Created "${uData.username}"`);
+                    } else {
+                        await strapi.query('plugin::users-permissions.user').update({
+                            where: { id: user.id },
+                            data: finalData
+                        });
+                        console.log(` EduMaster Updated "${uData.username}"`);
+                    }
+                }
+
+                console.log(' EduMaster BOOTSTRAP COMPLETE.');
             }
-
-            // 3. Create/Update Demo Users
-            const usersToCreate = [
-                { username: 'duong', email: 'admin@edumaster.vn', password: 'EduMaster@2026' },
-                { username: 'admin', email: 'support@edumaster.vn', password: 'admin123' }
-            ];
-
-                // 3a. Update "duong" user
-                const duong = await strapi.query('plugin::users-permissions.user').findOne({ where: { username: 'duong' } });
-                const duongData = {
-                    username: 'duong',
-                    email: 'duong@edumaster.pro',
-                    password: 'EduMaster@2026',
-                    role: authenticatedRole.id,
-                    confirmed: true, // Force true
-                    blocked: false,
-                    provider: 'local', // Force local
-                };
-
-                if (!duong) {
-                    await strapi.service('plugin::users-permissions.user').add(duongData);
-                    console.log(' EduMaster Created "duong"');
-                } else {
-                    await strapi.query('plugin::users-permissions.user').update({
-                        where: { id: duong.id },
-                        data: {
-                            password: duongData.password,
-                            role: duongData.role,
-                            confirmed: true,
-                            blocked: false,
-                            provider: 'local'
-                        }
-                    });
-                    console.log(' EduMaster Updated "duong"');
-                }
-
-                // 3b. Update "admin" user
-                const admin = await strapi.query('plugin::users-permissions.user').findOne({ where: { username: 'admin' } });
-                const adminData = {
-                    username: 'admin',
-                    email: 'admin@edumaster.pro',
-                    password: 'admin123',
-                    role: authenticatedRole.id,
-                    confirmed: true, // Force true
-                    blocked: false,
-                    provider: 'local', // Force local
-                };
-
-                if (!admin) {
-                    await strapi.service('plugin::users-permissions.user').add(adminData);
-                    console.log(' EduMaster Created "admin"');
-                } else {
-                    await strapi.query('plugin::users-permissions.user').update({
-                        where: { id: admin.id },
-                        data: {
-                            password: adminData.password,
-                            role: adminData.role,
-                            confirmed: true,
-                            blocked: false,
-                            provider: 'local'
-                        }
-                    });
-                    console.log(' EduMaster Updated "admin"');
-                }
-
-            console.log(' EduMaster BOOTSTRAP COMPLETE.');
-
         } catch (err: any) {
             console.error(' EduMaster BOOTSTRAP ERROR:', err.message);
             if (err.stack) console.error(err.stack);
