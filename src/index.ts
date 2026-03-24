@@ -85,40 +85,63 @@ export default {
                 { username: 'admin', email: 'support@edumaster.vn', password: 'admin123' }
             ];
 
-            for (const userData of usersToCreate) {
-                const existingUser = await strapi.query('plugin::users-permissions.user').findOne({ 
-                    where: { username: userData.username } 
-                });
+                // 3a. Update "duong" user
+                const duong = await strapi.query('plugin::users-permissions.user').findOne({ where: { username: 'duong' } });
+                const duongData = {
+                    username: 'duong',
+                    email: 'duong@edumaster.pro',
+                    password: 'EduMaster@2026',
+                    role: authenticatedRole.id,
+                    confirmed: true, // Force true
+                    blocked: false,
+                    provider: 'local', // Force local
+                };
 
-                if (!existingUser) {
-                    await strapi.service('plugin::users-permissions.user').add({
-                        ...userData,
-                        confirmed: true,
-                        role: authenticatedRole?.id,
-                        blocked: false
-                    });
-                    console.log(` EduMaster Created "${userData.username}"`);
+                if (!duong) {
+                    await strapi.service('plugin::users-permissions.user').add(duongData);
+                    console.log(' EduMaster Created "duong"');
                 } else {
-                    await strapi.service('plugin::users-permissions.user').edit(existingUser.id, { 
-                        password: userData.password, 
-                        confirmed: true,
-                        blocked: false
+                    await strapi.query('plugin::users-permissions.user').update({
+                        where: { id: duong.id },
+                        data: {
+                            password: duongData.password,
+                            role: duongData.role,
+                            confirmed: true,
+                            blocked: false,
+                            provider: 'local'
+                        }
                     });
-                    console.log(` EduMaster Updated "${userData.username}"`);
+                    console.log(' EduMaster Updated "duong"');
                 }
 
-                // VERIFY TEST & LOG HASH
-                const verified = await strapi.query('plugin::users-permissions.user').findOne({ where: { username: userData.username } });
-                if (verified && verified.password) {
-                    console.log(` EduMaster Hashed Password in DB for "${userData.username}": ${verified.password.substring(0, 10)}...`);
-                    try {
-                        const isValid = await strapi.service('plugin::users-permissions.user').validatePassword(userData.password, verified.password);
-                        console.log(` EduMaster LOGIN TEST for "${userData.username}": ${isValid ? 'PASSED' : 'FAILED'}`);
-                    } catch (e: any) {
-                        console.error(` EduMaster VALIDATION ERROR for "${userData.username}":`, e.message);
-                    }
+                // 3b. Update "admin" user
+                const admin = await strapi.query('plugin::users-permissions.user').findOne({ where: { username: 'admin' } });
+                const adminData = {
+                    username: 'admin',
+                    email: 'admin@edumaster.pro',
+                    password: 'admin123',
+                    role: authenticatedRole.id,
+                    confirmed: true, // Force true
+                    blocked: false,
+                    provider: 'local', // Force local
+                };
+
+                if (!admin) {
+                    await strapi.service('plugin::users-permissions.user').add(adminData);
+                    console.log(' EduMaster Created "admin"');
+                } else {
+                    await strapi.query('plugin::users-permissions.user').update({
+                        where: { id: admin.id },
+                        data: {
+                            password: adminData.password,
+                            role: adminData.role,
+                            confirmed: true,
+                            blocked: false,
+                            provider: 'local'
+                        }
+                    });
+                    console.log(' EduMaster Updated "admin"');
                 }
-            }
 
             console.log(' EduMaster BOOTSTRAP COMPLETE.');
 
