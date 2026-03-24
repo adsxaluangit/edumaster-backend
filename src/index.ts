@@ -24,6 +24,9 @@ export default {
         console.log(' EduMaster BOOTSTRAP STARTING...');
 
         try {
+            const userService = strapi.service('plugin::users-permissions.user');
+            console.log(' EduMaster User Service Methods:', Object.keys(userService || {}));
+
             // 1. Get the Authenticated Role
             const authenticatedRole = await strapi.query('plugin::users-permissions.role').findOne({ where: { type: 'authenticated' } });
             
@@ -54,24 +57,13 @@ export default {
                 }
             }
 
-            // 3. Create/Update Demo Users with EXPLICIT HASHING
+            // 3. Create/Update Demo Users
             const usersToCreate = [
                 { username: 'duong', email: 'admin@edumaster.vn', password: 'EduMaster@2026' },
                 { username: 'admin', email: 'support@edumaster.vn', password: 'admin123' }
             ];
 
             for (const userData of usersToCreate) {
-                // Manually hash to be 100% sure
-                console.log(` EduMaster Hashing password for "${userData.username}"...`);
-                // In Strapi v5, we use the user service's hashPassword if possible
-                let hashedPassword;
-                try {
-                     hashedPassword = await strapi.service('plugin::users-permissions.user').hashPassword({ password: userData.password });
-                } catch (e) {
-                     console.error(" EduMaster could not hash via service, trying common strapi internal...");
-                     // Fallback to service add/edit which SHOULD hash
-                }
-
                 const existingUser = await strapi.query('plugin::users-permissions.user').findOne({ 
                     where: { username: userData.username } 
                 });
@@ -83,20 +75,26 @@ export default {
                         role: authenticatedRole?.id,
                         blocked: false
                     });
-                    console.log(` EduMaster Created "${userData.username}" via service`);
+                    console.log(` EduMaster Created "${userData.username}"`);
                 } else {
                     await strapi.service('plugin::users-permissions.user').edit(existingUser.id, { 
                         password: userData.password, 
                         confirmed: true,
                         blocked: false
                     });
-                    console.log(` EduMaster Updated "${userData.username}" via service`);
+                    console.log(` EduMaster Updated "${userData.username}"`);
                 }
 
-                // VERIFY TEST
+                // VERIFY TEST & LOG HASH
                 const verified = await strapi.query('plugin::users-permissions.user').findOne({ where: { username: userData.username } });
-                const isValid = await strapi.service('plugin::users-permissions.user').validatePassword(userData.password, verified.password);
-                console.log(` EduMaster LOGIN TEST for "${userData.username}": ${isValid ? 'PASSED' : 'FAILED'}`);
+                console.log(` EduMaster Hashed Password in DB for "${userData.username}": ${verified.password.substring(0, 20)}...`);
+                
+                try {
+                    const isValid = await strapi.service('plugin::users-permissions.user').validatePassword(userData.password, verified.password);
+                    console.log(` EduMaster LOGIN TEST for "${userData.username}": ${isValid ? 'PASSED' : 'FAILED'}`);
+                } catch (e: any) {
+                    console.error(` EduMaster VALIDATION ERROR for "${userData.username}":`, e.message);
+                }
             }
 
             console.log(' EduMaster BOOTSTRAP COMPLETE.');
