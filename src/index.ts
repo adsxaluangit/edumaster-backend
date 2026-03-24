@@ -24,14 +24,36 @@ export default {
         console.log(' EduMaster BOOTSTRAP STARTING...');
 
         try {
-            const userService = strapi.service('plugin::users-permissions.user');
-            console.log(' EduMaster User Service Methods:', Object.keys(userService || {}));
-
             // 1. Get the Authenticated Role
             const authenticatedRole = await strapi.query('plugin::users-permissions.role').findOne({ where: { type: 'authenticated' } });
             
             if (authenticatedRole) {
                 console.log(` EduMaster Found Authenticated Role: ${authenticatedRole.id}`);
+                
+                // 1b. Fix Plugin Settings (Local login & Confirmation)
+                const store = strapi.store({ type: 'plugin', name: 'users-permissions' });
+                const advancedSettings = await store.get({ key: 'advanced' });
+                console.log(' EduMaster Advanced Settings (BEFORE):', JSON.stringify(advancedSettings));
+                
+                await store.set({ 
+                    key: 'advanced', 
+                    value: { 
+                        ...advancedSettings, 
+                        email_confirmation: false, 
+                        allow_register: true, 
+                        register_default_role: authenticatedRole.id 
+                    } 
+                });
+                console.log(' EduMaster Advanced Settings (UPDATED)');
+
+                // 1c. Ensure Local Provider is enabled
+                const grantSettings = await store.get({ key: 'grant' });
+                if (grantSettings && grantSettings.local) {
+                    grantSettings.local.enabled = true;
+                    await store.set({ key: 'grant', value: grantSettings });
+                    console.log(' EduMaster Local Provider (ENABLED)');
+                }
+
                 // 2. Grant Permissions
                 const actionsToGrant = [
                     'api::class-decision.class-decision.find', 'api::class-decision.class-decision.findOne', 'api::class-decision.class-decision.create', 'api::class-decision.class-decision.update', 'api::class-decision.class-decision.delete',
@@ -87,13 +109,14 @@ export default {
 
                 // VERIFY TEST & LOG HASH
                 const verified = await strapi.query('plugin::users-permissions.user').findOne({ where: { username: userData.username } });
-                console.log(` EduMaster Hashed Password in DB for "${userData.username}": ${verified.password.substring(0, 20)}...`);
-                
-                try {
-                    const isValid = await strapi.service('plugin::users-permissions.user').validatePassword(userData.password, verified.password);
-                    console.log(` EduMaster LOGIN TEST for "${userData.username}": ${isValid ? 'PASSED' : 'FAILED'}`);
-                } catch (e: any) {
-                    console.error(` EduMaster VALIDATION ERROR for "${userData.username}":`, e.message);
+                if (verified && verified.password) {
+                    console.log(` EduMaster Hashed Password in DB for "${userData.username}": ${verified.password.substring(0, 10)}...`);
+                    try {
+                        const isValid = await strapi.service('plugin::users-permissions.user').validatePassword(userData.password, verified.password);
+                        console.log(` EduMaster LOGIN TEST for "${userData.username}": ${isValid ? 'PASSED' : 'FAILED'}`);
+                    } catch (e: any) {
+                        console.error(` EduMaster VALIDATION ERROR for "${userData.username}":`, e.message);
+                    }
                 }
             }
 
