@@ -51,7 +51,7 @@ export default {
                     'api::subject.subject.find', 'api::subject.subject.findOne',
                     'api::teacher.teacher.find', 'api::teacher.teacher.findOne',
                     'api::classroom.classroom.find', 'api::classroom.classroom.findOne',
-                    'api::print-template.print-template.find', 'api::print-template.print-template.findOne',
+                    'api::print-template.print-template.find', 'api::print-template.print-template.findOne', 'api::print-template.print-template.create', 'api::print-template.print-template.update', 'api::print-template.print-template.delete',
                     'api::audit-log.audit-log.find', 'api::audit-log.audit-log.findOne', 'api::audit-log.audit-log.create',
                     'plugin::users-permissions.user.me'
                 ];
