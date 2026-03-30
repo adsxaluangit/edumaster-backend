@@ -83,6 +83,9 @@
             "target": "api::student-document.student-document",
             "mappedBy": "student"
         },
+        "notes": {
+            "type": "text"
+        },
         "is_approved": {
             "type": "boolean",
             "default": false
