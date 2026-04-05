@@ -1,93 +1,99 @@
 #!/bin/bash
 # =================================================================
-# Script cai dat HTTPS lan dau cho ptnl.mic1.edu.vn
-# Chay tren Linux server: bash setup-https.sh your@email.com
+# Script cai dat HTTPS bang DNS Challenge
+# Khong can port 80 - chi can port 443
+#
+# Cach dung:
+#   bash setup-https.sh your@email.com
 # =================================================================
 
 DOMAIN="ptnl.mic1.edu.vn"
 EMAIL="${1:-admin@mic1.edu.vn}"
 
+echo ""
 echo "======================================================"
-echo " Cai dat HTTPS cho $DOMAIN"
-echo " Email: $EMAIL"
+echo "  Cai dat HTTPS (DNS Challenge) cho $DOMAIN"
+echo "  Email: $EMAIL"
 echo "======================================================"
-
-# BUOC 1: Comment tam thoi block HTTPS de nginx khoi dong duoc
 echo ""
-echo "[1/5] Tat tam thoi block SSL trong nginx config..."
-sed -i 's/^server {$/###SERVER_SSL_START###/' nginx-proxy/default.conf
-sed -i '/###SERVER_SSL_START###/,/^}$/{ s/^/# / }' nginx-proxy/default.conf
-
-# Cach don gian hon: tao file chi HTTP
-cat > /tmp/nginx-http-only.conf << 'EOF'
-server {
-    listen 80;
-    server_name ptnl.mic1.edu.vn www.ptnl.mic1.edu.vn;
-
-    location /.well-known/acme-challenge/ {
-        root /var/www/certbot;
-    }
-
-    location / {
-        return 200 'Dang cai SSL...';
-        add_header Content-Type text/plain;
-    }
-}
-EOF
-
-cp nginx-proxy/default.conf nginx-proxy/default.conf.backup
-cp /tmp/nginx-http-only.conf nginx-proxy/default.conf
-
-# BUOC 2: Khoi dong nginx-proxy voi chi HTTP
+echo "Phuong phap: DNS-01 Challenge"
+echo "  - Khong can port 80"
+echo "  - Chi can port 443 (dang trong)"
+echo "  - Can them 1 TXT record vao DNS panel"
 echo ""
-echo "[2/5] Khoi dong Nginx Proxy (HTTP only)..."
-docker compose up -d nginx-proxy
-sleep 3
 
-# BUOC 3: Lay chung chi SSL tu Let's Encrypt
+# BUOC 1: Lay chung chi bang DNS Challenge
+echo "======================================================"
+echo " BUOC 1: Lay chung chi SSL"
+echo "======================================================"
 echo ""
-echo "[3/5] Lay chung chi SSL cho $DOMAIN..."
+echo "Tiep theo Certbot se hoi ban them TXT record vao DNS."
+echo "Hay san sang mo DNS panel cua mic1.edu.vn."
+echo ""
+read -p "Nhan Enter de bat dau..."
+
 docker compose run --rm certbot certonly \
-  --webroot \
-  --webroot-path=/var/www/certbot \
+  --manual \
+  --preferred-challenges dns \
   --email "$EMAIL" \
   --agree-tos \
   --no-eff-email \
   -d "$DOMAIN"
 
-# Kiem tra ket qua
 if [ $? -ne 0 ]; then
     echo ""
-    echo "THAT BAI khi lay cert! Kiem tra lai:"
-    echo "  1. Domain $DOMAIN co tro ve IP nay khong?"
-    echo "     curl http://$DOMAIN/.well-known/acme-challenge/test"
-    echo "  2. Port 80 co mo khong?"
-    echo "     ufw allow 80 && ufw allow 443"
+    echo "THAT BAI! Kiem tra lai:"
+    echo "  1. Da them TXT record dung chua?"
+    echo "  2. Record da propagate chua? (doi 1-5 phut)"
+    echo "  3. Kiem tra: nslookup -type=TXT _acme-challenge.$DOMAIN 8.8.8.8"
     exit 1
 fi
 
 echo ""
-echo "OK! Da lay cert thanh cong!"
+echo "OK! Lay cert thanh cong!"
 
-# BUOC 4: Phuc hoi file nginx day du (co HTTPS)
+# BUOC 2: Khoi dong nginx-proxy voi HTTPS
 echo ""
-echo "[4/5] Kich hoat HTTPS trong nginx config..."
-cp nginx-proxy/default.conf.backup nginx-proxy/default.conf
+echo "======================================================"
+echo " BUOC 2: Khoi dong Nginx Proxy (HTTPS port 443)"
+echo "======================================================"
+docker compose up -d nginx-proxy
 
-# BUOC 5: Restart nginx de load cert moi
+sleep 3
+
+# BUOC 3: Khoi dong tat ca services
 echo ""
-echo "[5/5] Restart Nginx Proxy voi HTTPS..."
-docker compose restart nginx-proxy
-sleep 2
-
-# Khoi dong tat ca services
+echo "======================================================"
+echo " BUOC 3: Khoi dong tat ca services"
+echo "======================================================"
 docker compose up -d
 
 echo ""
 echo "======================================================"
-echo " HOAN THANH! Kiem tra:"
-echo "   https://$DOMAIN"
+echo " HOAN THANH!"
 echo ""
-echo " Xem trang thai cert:"
+echo " Kiem tra HTTPS:"
+echo "   curl -I https://$DOMAIN"
+echo ""
+echo " Xem thong tin cert:"
 echo "   docker compose run --rm certbot certificates"
+echo ""
+echo " Xem len trinh duyet:"
+echo "   https://$DOMAIN"
+echo "======================================================"
+echo ""
+
+# BUOC 4: Huong dan renew
+echo "======================================================"
+echo " LUU Y: Tu dong Renew SSL"
+echo "======================================================"
+echo ""
+echo "Chung chi het han sau 90 ngay."
+echo "De tu dong gia han, them cronjob sau (crontab -e):"
+echo ""
+echo "  0 3 1 * * cd $(pwd) && docker compose run --rm certbot renew --quiet && docker compose restart nginx-proxy"
+echo ""
+echo "QUAN TRONG: Khi renew bang DNS Challenge, ban phai"
+echo "  cap nhat TXT record moi trong DNS panel."
+echo "  Nen dat lich nh ac: moi 80 ngay gia han 1 lan."
 echo "======================================================"
