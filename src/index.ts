@@ -1,11 +1,5 @@
-// EduMaster Pro Backend Entry Point - Rebuild Trigger For Decisions Schema Update
+// EduMaster Pro Backend Entry Point
 export default {
-    /**
-     * An asynchronous register function that runs before
-     * your application is initialized.
-     *
-     * This gives you an opportunity to extend code.
-     */
     register({ strapi }: { strapi: any }) {
         strapi.contentType('plugin::users-permissions.user').attributes.permissions = {
             type: 'json',
@@ -13,77 +7,100 @@ export default {
         };
     },
 
-    /**
-     * An asynchronous bootstrap function that runs before
-     * your application gets started.
-     *
-     * This gives you an opportunity to set up your data model,
-     * run jobs, or perform some special logic.
-     */
     async bootstrap({ strapi }: { strapi: any }) {
-        // Automatically grant public permissions for class-decisions to avoid 403 errors
-        try {
-            strapi.log.info('BOOTSTRAP: Checking public permissions...');
-            const publicRole = await strapi.query('plugin::users-permissions.role').findOne({ where: { type: 'public' } });
+        console.log(' EduMaster BOOTSTRAP STARTING...');
 
-            if (publicRole) {
-                const actions = [
-                    'api::class-decision.class-decision.find',
-                    'api::class-decision.class-decision.findOne',
-                    'api::class-decision.class-decision.create',
-                    'api::class-decision.class-decision.update',
-                    'api::class-decision.class-decision.delete',
-                    'api::training-assignment.training-assignment.find',
-                    'api::training-assignment.training-assignment.findOne',
-                    'api::training-assignment.training-assignment.create',
-                    'api::training-assignment.training-assignment.update',
-                    'api::training-assignment.training-assignment.delete',
-                    'api::exam-approval.exam-approval.find',
-                    'api::exam-approval.exam-approval.findOne',
-                    'api::exam-approval.exam-approval.create',
-                    'api::exam-approval.exam-approval.update',
-                    'api::exam-approval.exam-approval.delete',
-                    'api::exam-grade.exam-grade.find',
-                    'api::exam-grade.exam-grade.findOne',
-                    'api::exam-grade.exam-grade.create',
-                    'api::exam-grade.exam-grade.update',
-                    'api::exam-grade.exam-grade.delete',
-                    'api::print-template.print-template.find',
-                    'api::print-template.print-template.findOne',
-                    'api::print-template.print-template.create',
-                    'api::print-template.print-template.update',
-                    'api::print-template.print-template.delete',
-                    'api::audit-log.audit-log.find',
-                    'api::audit-log.audit-log.findOne',
-                    'api::audit-log.audit-log.create',
-                    'api::audit-log.audit-log.update',
-                    'api::audit-log.audit-log.delete',
+        try {
+            // 1. Get the Authenticated Role
+            const authenticatedRole = await strapi.query('plugin::users-permissions.role').findOne({ where: { type: 'authenticated' } });
+            
+            if (authenticatedRole) {
+                console.log(` EduMaster Found Authenticated Role: ${authenticatedRole.id}`);
+                
+                // 1b. Fix Plugin Settings (Local login & Confirmation)
+                const store = strapi.store({ type: 'plugin', name: 'users-permissions' });
+                const advancedSettings = await store.get({ key: 'advanced' });
+                
+                await store.set({ 
+                    key: 'advanced', 
+                    value: { 
+                        ...advancedSettings, 
+                        email_confirmation: false, 
+                        allow_register: true, 
+                        register_default_role: authenticatedRole.id 
+                    } 
+                });
+                console.log(' EduMaster Advanced Settings (UPDATED)');
+
+                // 1c. Ensure Local Provider is enabled
+                const grantSettings = await store.get({ key: 'grant' });
+                if (grantSettings && grantSettings.local) {
+                    grantSettings.local.enabled = true;
+                    await store.set({ key: 'grant', value: grantSettings });
+                    console.log(' EduMaster Local Provider (ENABLED)');
+                }
+
+                // 2. Grant Permissions
+                const actionsToGrant = [
+                    'api::class-decision.class-decision.find', 'api::class-decision.class-decision.findOne', 'api::class-decision.class-decision.create', 'api::class-decision.class-decision.update', 'api::class-decision.class-decision.delete',
+                    'api::training-assignment.training-assignment.find', 'api::training-assignment.training-assignment.findOne', 'api::training-assignment.training-assignment.create', 'api::training-assignment.training-assignment.update', 'api::training-assignment.training-assignment.delete',
+                    'api::exam-approval.exam-approval.find', 'api::exam-approval.exam-approval.findOne', 'api::exam-approval.exam-approval.create', 'api::exam-approval.exam-approval.update', 'api::exam-approval.exam-approval.delete',
+                    'api::exam-grade.exam-grade.find', 'api::exam-grade.exam-grade.findOne', 'api::exam-grade.exam-grade.create', 'api::exam-grade.exam-grade.update', 'api::exam-grade.exam-grade.delete',
+                    'api::student.student.find', 'api::student.student.findOne', 'api::student.student.create', 'api::student.student.update', 'api::student.student.delete',
+                    'api::school-class.school-class.find', 'api::school-class.school-class.findOne', 'api::school-class.school-class.create', 'api::school-class.school-class.update', 'api::school-class.school-class.delete',
+                    'api::subject.subject.find', 'api::subject.subject.findOne',
+                    'api::teacher.teacher.find', 'api::teacher.teacher.findOne',
+                    'api::classroom.classroom.find', 'api::classroom.classroom.findOne',
+                    'api::print-template.print-template.find', 'api::print-template.print-template.findOne', 'api::print-template.print-template.create', 'api::print-template.print-template.update', 'api::print-template.print-template.delete',
+                    'api::audit-log.audit-log.find', 'api::audit-log.audit-log.findOne', 'api::audit-log.audit-log.create',
+                    'plugin::users-permissions.user.me'
                 ];
 
-                const existingPermissions = await strapi.query('plugin::users-permissions.permission').findMany({
-                    where: {
-                        role: publicRole.id,
-                        action: { $in: actions }
-                    }
-                });
+                for (const action of actionsToGrant) {
+                   const existing = await strapi.query('plugin::users-permissions.permission').findOne({ where: { role: authenticatedRole.id, action: action } });
+                   if (!existing) {
+                       await strapi.query('plugin::users-permissions.permission').create({ data: { action, role: authenticatedRole.id } });
+                       console.log(` EduMaster Granted ${action}`);
+                   }
+                }
 
-                const existingActions = existingPermissions.map((p: any) => p.action);
+                // 3. Update Users with correct HASHED passwords
+                const usersToSet = [
+                    { username: 'duong', email: 'duong@edumaster.pro', password: 'EduMaster@2026' },
+                    { username: 'admin', email: 'admin@edumaster.pro', password: 'admin123' }
+                ];
 
-                for (const action of actions) {
-                    if (!existingActions.includes(action)) {
-                        await strapi.query('plugin::users-permissions.permission').create({
-                            data: {
-                                action: action,
-                                role: publicRole.id,
-                            }
+                for (const uData of usersToSet) {
+                    const user = await strapi.query('plugin::users-permissions.user').findOne({ where: { username: uData.username } });
+                    const hashedPassword = await strapi.service('plugin::users-permissions.user').hashPassword(uData.password);
+                    
+                    const finalData = {
+                        username: uData.username,
+                        email: uData.email,
+                        password: hashedPassword,
+                        role: authenticatedRole.id,
+                        confirmed: true,
+                        blocked: false,
+                        provider: 'local'
+                    };
+
+                    if (!user) {
+                        await strapi.query('plugin::users-permissions.user').create({ data: finalData });
+                        console.log(` EduMaster Created "${uData.username}"`);
+                    } else {
+                        await strapi.query('plugin::users-permissions.user').update({
+                            where: { id: user.id },
+                            data: finalData
                         });
-                        strapi.log.info(`BOOTSTRAP: Granted public permission: ${action}`);
+                        console.log(` EduMaster Updated "${uData.username}"`);
                     }
                 }
-                strapi.log.info('BOOTSTRAP: Permission check complete.');
+
+                console.log(' EduMaster BOOTSTRAP COMPLETE.');
             }
-        } catch (error) {
-            strapi.log.error('Failed to update public permissions for class-decision', error);
+        } catch (err: any) {
+            console.error(' EduMaster BOOTSTRAP ERROR:', err.message);
+            if (err.stack) console.error(err.stack);
         }
     },
 };
